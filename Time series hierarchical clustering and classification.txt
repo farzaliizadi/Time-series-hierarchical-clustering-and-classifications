@@ -1,0 +1,142 @@
+rm(list=ls())
+dg <- read.csv('ts_new-1800.csv')
+dg <- dg[, -c(1)]
+dim(dg)
+names(dg)
+head(dg)
+str(dg)
+plot(dg$V1, dg$V60, col= 'blue')
+plot(dg[,50], col='blue')
+plot(dg[, 10], type = 'l', col='purple')
+plot(t(dg[50,]), col='blue')
+i <- c(30,530, 840, 1123, 1434, 1780)
+sample1 <- t(dg[i,])
+#ts for time series
+plot.ts(sample1,
+        main = 'Time-series plot',
+        col = 'blue',
+        type = 'c')
+plot.ts(sample1,
+        main = 'Time-series plot',
+        col = 'red',
+        type = 'b')
+# Top left is normal
+# Middle left cycle
+#Bottom left increasing trend
+# Top right decreasing trend
+#Middle right upward shift
+# bottom right downward shift
+#################################
+#hierarchical clustering
+set.seed(999)
+n <- 20
+s <- sample(1:100, n)
+# 3  random samples from 1 to 100
+# The systematic sampling
+m <- c(200+s, 500+s, 800+s, 1100+s, 1400+s, 1700+s)
+d <- dg[m,]
+dim(d)
+pattern20 <- c(rep('Normal', n),
+               rep('Cyclic', n),
+               rep('Increasing trend', n),
+               rep('Decreasing trend', n),
+               rep('Upward shift ', n),
+               rep('Downward shift', n))
+# Calculate distances
+#dtw = dynamic time warping
+library(dtw)
+distance <- dist(d, method = 'DTW')
+# Hierarchical clustering
+hiAC <- hclust(distance, method = 'average')
+plot(hiAC, labels = pattern20,
+     cex = .8,
+     hang = -1,
+     col = 'blue')
+# Chossing the number of cluters
+rect.hclust(hiAC, 2)
+rect.hclust(hiAC, 3)
+rect.hclust(hiAC, 4)
+#############################################
+# Time series classification
+# Data preparation
+n <- 300
+pattern300 <- c(rep('Normal', n),
+                rep('Cyclic', n),
+                rep('Increasing trend', n),
+                rep('Decreasing trend', n),
+                rep('Upward shift ', n),
+                rep('Downward shift', n))
+dh <- data.frame(dg, pattern300)
+str(dh)
+head(dh)
+dim(dh)
+dh$pattern300
+# One more varibl1e created as factor=pattern100
+# Classification with decision tree
+library(party)   # partition
+tree <- ctree(pattern300 ~.,data =dh)
+tree
+plot(tree)
+# Pruning with split and criterion, 
+# The more minsplit, the more smaller the split and vice versa.
+tree <- ctree(pattern300 ~.,data=dh,controls=ctree_control(mincriterion=0.7, minsplit=1000))
+tree
+plot(tree)
+#Conditional inference tree with ... terminal nodes
+tree <- ctree(pattern300 ~.,data=dh,controls=ctree_control(mincriterion=0.7, minsplit=500))
+plot(tree)
+tree <- ctree(pattern300~.,data=dh,controls=ctree_control(mincriterion=0.7, minsplit=400))
+plot(tree)
+# Classification performance
+tree <- ctree(pattern300 ~.,data =dh)
+pred <- predict(tree, dh)
+pred
+#Confusion matrix
+tab <- table(Predicted = pred, Actual = dh$pattern300)
+tab 
+# Accuracy
+sum(diag(tab))/sum(tab)
+# 0.9927778
+###################################
+# Shuffle the dataset; build train and test
+n <- nrow(dh)
+shuffled <- dh[sample(n),]
+train <- shuffled[1:round(0.78 * n),]
+test <- shuffled[(round(0.78 * n) + 1):n,]
+tree1 <- ctree(pattern300 ~.,data=train, controls=ctree_control(mincriterion=0.7, minsplit=500) )
+tree1
+plot(tree1)
+#Confusion on tain data
+tree1 <- ctree(pattern300 ~.,data=train)
+tab12 <- table(predict(tree1),train$pattern300)
+tab12
+# Accuracy
+sum(diag(tab12))/sum(tab12)
+# 0.985755
+# Prediction with probability of 6 different cases. 
+predict(tree1, test, type='prob')
+# Testing each of 6 different cases
+pred <- predict(tree1, test)
+pred
+# Confusion matrix on test data 
+tab13 <- table(predicted=pred, Actual=test$pattern300)
+tab13
+# Classification accuracy
+sum(diag(tab13))/sum(tab13)
+# 0.8181818
+#Decision tree with rpart
+library(rpart)
+tree2 <- rpart(pattern300 ~., data= train)
+library(rpart.plot)
+rpart.plot(tree2)
+#another option
+rpart.plot(tree2, extra=1)
+#gives number of cases
+rpart.plot(tree2, extra=2)
+#gives 71/71 with cycle means from 71, 71 belong to cycle
+rpart.plot(tree2, extra=3)
+rpart.plot(tree2, extra=4)
+#gives probs
+pred <- predict(tree2, test)
+pred
+################################################
